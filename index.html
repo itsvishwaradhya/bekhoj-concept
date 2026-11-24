@@ -373,9 +373,87 @@
   ]
 }
 </script>
+<style>
+  /* ---- loom intro: plain CSS (not Tailwind-processed) so it is styled from the first paint ---- */
+  html.is-weaving { overflow: hidden; }
+  .loom { --paper: #faf7f1; --ink: #2a221b; --clay: #a9442a;
+    position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; background: var(--paper); cursor: pointer;
+    clip-path: inset(0 0 0 0); transition: clip-path .8s cubic-bezier(.65, 0, .35, 1); }
+  .loom.is-leaving { clip-path: inset(0 0 100% 0); pointer-events: none; }
+  .loom-in { display: flex; flex-direction: column; align-items: center; gap: 22px; transition: opacity .35s ease, transform .6s cubic-bezier(.22, 1, .36, 1); }
+  .loom.is-leaving .loom-in { opacity: 0; transform: translateY(-24px); }
+  .loom svg { width: min(196px, 52vw); height: auto; overflow: visible; }
+  .loom .warp { stroke: var(--ink); stroke-opacity: .35; stroke-width: 1; stroke-dasharray: 120; stroke-dashoffset: 120;
+    animation: loom-draw .5s cubic-bezier(.22, 1, .36, 1) forwards; animation-delay: calc(var(--i) * 25ms); }
+  .loom .weft { fill: none; stroke-width: 3.2; stroke-linecap: round; stroke-dasharray: 170; stroke-dashoffset: 170;
+    animation: loom-draw var(--row) linear forwards; animation-delay: calc(var(--t0) + var(--r) * var(--row)); }
+  .loom .over { opacity: 0; animation: loom-show .12s ease forwards; animation-delay: calc(var(--t0) + (var(--r) + 1) * var(--row)); }
+  .loom .over line:nth-child(odd) { stroke: var(--paper); stroke-width: 3.4; }
+  .loom .over line:nth-child(even) { stroke: var(--ink); stroke-opacity: .55; stroke-width: 1.2; }
+  .loom .shuttle { fill: var(--clay); opacity: 0; transform-box: view-box;
+    animation: loom-pass var(--row) linear forwards; animation-delay: calc(var(--t0) + var(--r) * var(--row)); }
+  .loom-name { margin: 0; font: 400 clamp(1.5rem, 5vw, 2rem)/1 "Fraunces", Georgia, serif; letter-spacing: .32em; padding-left: .32em; color: var(--ink);
+    opacity: 0; transform: translateY(8px); animation: loom-rise .7s cubic-bezier(.22, 1, .36, 1) .9s forwards; }
+  .loom-sub { margin: -10px 0 0; font: 500 11px/1 "DM Sans", system-ui, sans-serif; letter-spacing: .24em; text-transform: uppercase; color: var(--clay);
+    opacity: 0; animation: loom-rise .7s cubic-bezier(.22, 1, .36, 1) 1.1s forwards; }
+  @keyframes loom-draw { to { stroke-dashoffset: 0; } }
+  @keyframes loom-show { to { opacity: 1; } }
+  @keyframes loom-rise { to { opacity: 1; transform: none; } }
+  @keyframes loom-pass { 0% { opacity: 1; transform: translateX(var(--a)); } 90% { opacity: 1; } 100% { opacity: 0; transform: translateX(var(--b)); } }
+</style>
 </head>
 
 <body>
+
+<!-- loom intro: warp threads drop, the shuttle carries each weft row across, over and under, then the cloth rolls up.
+     Built here, before the heavy image script parses, so it covers the load. Skipped for reduced motion; a click skips it.
+     The hero entrance waits for the 'bk:loomdone' event. -->
+<script>
+(function () {
+  var L = window.bkLoom = { done: true };
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  L.done = false;
+  var COLS = 14, ROWS = 8, GAP = 12, W = COLS * GAP, H = ROWS * GAP + 8, ROW = 0.13, T0 = 0.4;
+  var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true" style="--row:' + ROW + 's;--t0:' + T0 + 's">';
+  for (var c = 0; c < COLS; c++) {
+    var x = GAP / 2 + c * GAP;
+    svg += '<line class="warp" style="--i:' + c + '" x1="' + x + '" y1="0" x2="' + x + '" y2="' + H + '"/>';
+  }
+  for (var r = 0; r < ROWS; r++) {
+    var y = 10 + r * GAP, ltr = r % 2 === 0, a = ltr ? 2 : W - 2, b = ltr ? W - 2 : 2;
+    // border rows in clay, like a saree's edge; the body in ink
+    var col = (r === 0 || r === ROWS - 1) ? '#a9442a' : (r === 1 || r === ROWS - 2) ? '#c98a5e' : '#2a221b';
+    svg += '<path class="weft" style="--r:' + r + ';stroke:' + col + '" d="M' + a + ' ' + y + 'H' + b + '"/>';
+    // every other warp thread passes over this row (alternating each row): plain weave
+    svg += '<g class="over" style="--r:' + r + '">';
+    for (c = r % 2; c < COLS; c += 2) {
+      var seg = 'x1="' + (GAP / 2 + c * GAP) + '" y1="' + (y - 3.5) + '" x2="' + (GAP / 2 + c * GAP) + '" y2="' + (y + 3.5) + '"';
+      svg += '<line ' + seg + '/><line ' + seg + '/>';
+    }
+    svg += '</g><ellipse class="shuttle" style="--r:' + r + ';--a:' + a + 'px;--b:' + b + 'px" cx="0" cy="' + y + '" rx="6" ry="2.6"/>';
+  }
+  svg += '</svg>';
+  var el = document.createElement('div');
+  el.className = 'loom'; el.setAttribute('role', 'status'); el.setAttribute('aria-label', 'Loading BEKHOJ INDIA');
+  el.innerHTML = '<div class="loom-in">' + svg + '<p class="loom-name">BEKHOJ</p><p class="loom-sub">Handloom from Madhya Pradesh</p></div>';
+  document.documentElement.classList.add('is-weaving');
+  document.body.appendChild(el);
+
+  var woven = (T0 + ROWS * ROW + 0.35) * 1000, start = Date.now(), gone = false;
+  function finish() {
+    if (gone) return; gone = true;
+    L.done = true;
+    window.dispatchEvent(new Event('bk:loomdone'));
+    el.classList.add('is-leaving');
+    document.documentElement.classList.remove('is-weaving');
+    setTimeout(function () { el.remove(); }, 900);
+  }
+  function ready() { setTimeout(finish, Math.max(0, woven - (Date.now() - start))); }
+  if (document.readyState === 'complete') ready(); else window.addEventListener('load', ready, { once: true });
+  setTimeout(finish, 4000);   // never hold the page longer than this, whatever is still loading
+  el.addEventListener('click', finish);
+})();
+</script>
 
 <!-- reading-progress thread: lays itself along the top of the screen as you scroll -->
 <div class="pointer-events-none fixed left-0 right-0 top-0 z-50 h-[3px]" aria-hidden="true"><span id="tbFill"></span><span id="tbShuttle" class="tb-shuttle"></span></div>
@@ -1367,10 +1445,21 @@ document.querySelectorAll("[data-img]").forEach(function(el){el.src=IMG[el.getAt
     document.getElementById('tagCard').addEventListener('pointerenter', layThread);
   }
 
-  // Hero entrance: fades and rises on load, a small stagger apart
-  M.animate(document.querySelectorAll('[data-hero]'), { opacity: [0, 1], transform: ['translateY(12px)', 'none'] }, { duration: 0.5, delay: M.stagger(0.08), ease: ease });
+  // Hero entrance: fades and rises a small stagger apart, as the loom intro rolls away (or at once if it was skipped)
   var heroTag = document.querySelector('.tag');
-  if (heroTag) M.animate(heroTag, { opacity: [0, 1], transform: ['translateY(16px) rotate(-3deg)', 'translateY(0) rotate(-2deg)'] }, { duration: 0.7, delay: 0.5, ease: ease });
+  var heroIn = function (d) {
+    M.animate(document.querySelectorAll('[data-hero]'), { opacity: [0, 1], transform: ['translateY(12px)', 'none'] }, { duration: 0.5, delay: M.stagger(0.08, { startDelay: d }), ease: ease });
+    if (heroTag) M.animate(heroTag, { opacity: [0, 1], transform: ['translateY(16px) rotate(-3deg)', 'translateY(0) rotate(-2deg)'] }, { duration: 0.7, delay: d + 0.5, ease: ease });
+  };
+  if (window.bkLoom && !window.bkLoom.done) {
+    if (lenis) lenis.stop();
+    window.addEventListener('bk:loomdone', function () {
+      if (lenis) lenis.start();
+      document.querySelectorAll('[data-hero]').forEach(function (h) { h.style.opacity = '0'; });   // hidden while the cloth lifts
+      if (heroTag) heroTag.style.opacity = '0';
+      heroIn(0.25);
+    }, { once: true });
+  } else heroIn(0);
 
   // Story: the rail fills as you read, knots light, stitches draw, tally is struck, the year rolls into place
   var storyBody = document.querySelector('.story-body'), storyFill = document.getElementById('storyFill');
